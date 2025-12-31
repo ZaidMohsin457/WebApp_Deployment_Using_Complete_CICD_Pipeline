@@ -48,8 +48,6 @@ jobs:
             REPO=${{ secrets.ECR_REPOSITORY }}
       
             docker pull $REGISTRY/$REPO:$IMAGE_TAG
-            docker stop app || true
-            docker rm app || true
             docker run -d -p 80:7002 --name app $REGISTRY/$REPO:$IMAGE_TAG
 
   
