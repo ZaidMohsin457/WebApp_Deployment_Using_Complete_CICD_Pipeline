@@ -1,7 +1,6 @@
-name: CI - Build, Push to ECR & Deploy to EC2
+name: CI - Build, Push & Deploy (latest only)
 
 on:
-  pull_request:
   push:
     branches: [ main ]
   workflow_dispatch:
@@ -11,7 +10,7 @@ permissions:
 
 jobs:
   build-and-push:
-    name: Build & Push Docker image to ECR
+    name: Build & Push Docker Image to ECR
     runs-on: ubuntu-latest
 
     steps:
@@ -26,19 +25,15 @@ jobs:
           aws-region: us-east-1
 
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build & Push Docker image
+      - name: Build & Push Docker image (latest)
         run: |
-          IMAGE_TAG=${GITHUB_SHA::7}
-          REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
           REPO=${{ secrets.ECR_REPOSITORY }}
 
-          echo "Building image: $REGISTRY/$REPO:$IMAGE_TAG"
-
-          docker build -t $REGISTRY/$REPO:$IMAGE_TAG .
-          docker push $REGISTRY/$REPO:$IMAGE_TAG
+          docker build -t $REGISTRY/$REPO:latest .
+          docker push $REGISTRY/$REPO:latest
 
   deploy-to-ec2:
     name: Deploy to EC2
@@ -53,22 +48,20 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            IMAGE_TAG=${GITHUB_SHA::7}
             REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
             REPO=${{ secrets.ECR_REPOSITORY }}
 
-            echo "Deploying image: $REGISTRY/$REPO:$IMAGE_TAG"
+            echo "Deploying latest image..."
 
             aws ecr get-login-password --region us-east-1 \
             | docker login --username AWS --password-stdin $REGISTRY
 
-            docker pull $REGISTRY/$REPO:$IMAGE_TAG
+            docker pull $REGISTRY/$REPO:latest
 
-            docker stop app || true
-            docker rm app || true
+            docker rm -f app || true
 
             docker run -d \
               --name app \
               --restart always \
               -p 80:7002 \
-              $REGISTRY/$REPO:$IMAGE_TAG
+              $REGISTRY/$REPO:latest
