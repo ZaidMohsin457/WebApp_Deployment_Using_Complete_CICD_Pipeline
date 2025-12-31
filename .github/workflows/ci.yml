@@ -26,8 +26,31 @@ jobs:
 
       - name: Build & Push Docker image
         run: |
-          REPO=${{ secrets.ECR_REPOSITORY }}
           IMAGE_TAG=${GITHUB_SHA::7}
-          docker build -t $REPO:$IMAGE_TAG .
-          docker tag $REPO:$IMAGE_TAG ${{ steps.login-ecr.outputs.registry }}/${REPO}:$IMAGE_TAG
-          docker push ${{ steps.login-ecr.outputs.registry }}/${REPO}:$IMAGE_TAG
+          REGISTRY=${{ steps.login-ecr.outputs.registry }}
+          REPO=${{ secrets.ECR_REPOSITORY }}
+
+          docker build -t $REGISTRY/$REPO:$IMAGE_TAG .
+          docker push $REGISTRY/$REPO:$IMAGE_TAG
+deploy-to-ec2:
+needs: build-test
+runs-on: ubuntu-latest
+if: github.event_name == 'workflow_dispatch || github.event_name=='pull_request'
+steps:
+- name: Deploy to EC2
+  uses: appleboy/ssh-action@v0.1.7
+  with:
+    host: ${{ secrets.EC2_HOST }}
+    username: ubuntu
+    key: ${{ secrets.EC2_SSH_KEY }}
+    script: |
+      IMAGE_TAG=${GITHUB_SHA::7}
+      REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+      REPO=${{ secrets.ECR_REPOSITORY }}
+
+      docker pull $REGISTRY/$REPO:$IMAGE_TAG
+      docker stop app || true
+      docker rm app || true
+      docker run -d -p 80:7002 --name app $REGISTRY/$REPO:$IMAGE_TAG
+
+  
