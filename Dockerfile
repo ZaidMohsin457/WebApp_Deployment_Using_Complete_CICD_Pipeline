@@ -1,10 +1,27 @@
-# Dockerfile
+# Use Node.js Alpine image
 FROM node:20-alpine
+
+# Set working directory
 WORKDIR /app
+
+# Copy package.json and package-lock.json
 COPY package*.json ./
-RUN npm ci --only=production || true
+
+# Install dependencies (including devDependencies for http-server)
+RUN npm install
+
+# Copy app source
 COPY . .
-# simple server using serve or express
-RUN npm install -g serve
-EXPOSE 3000
+
+# Build the app if needed
+RUN npm run build
+
+# Install http-server globally
+RUN npm install -g http-server serve
+
+# Expose the port your app will run on
+EXPOSE 7002
+
+# Run the app
+
 CMD ["npm","run","serve"]
