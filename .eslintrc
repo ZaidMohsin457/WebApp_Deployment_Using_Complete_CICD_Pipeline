@@ -1,0 +1,27 @@
+{
+    "env": {
+        "browser": true,
+        "node": true,
+        "es2021": true,
+        "jest": true
+    },
+    "extends": ["eslint:recommended", "plugin:react/recommended"],
+    "settings": {
+        "react": {
+            "version": "17.0.2"
+        }
+    },
+    "parserOptions": {
+        "ecmaVersion": 2021,
+        "sourceType": "module",
+        "ecmaFeatures": {
+          "jsx": true
+        }
+    },
+    "rules": {
+        "no-extra-parens": 0,
+        "react/prop-types": 0,
+        "react/react-in-jsx-scope": 0
+    },
+    "ignorePatterns": ["dist/", "build/", "node_modules/", "webpack.*.js"]
+}
