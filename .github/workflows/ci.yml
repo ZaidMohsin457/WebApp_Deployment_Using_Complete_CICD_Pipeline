@@ -35,7 +35,6 @@ jobs:
           
   deploy-to-ec2:
    runs-on: ubuntu-latest
-   if: github.event_name == 'workflow_dispatch || github.event_name=='pull_request'
    steps:
       - name: Deploy to EC2
         uses: appleboy/ssh-action@v0.1.7
