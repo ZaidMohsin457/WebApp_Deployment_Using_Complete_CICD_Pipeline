@@ -1,4 +1,5 @@
-name: CI - Build & Push to ECR
+name: CI - Build, Push to ECR & Deploy to EC2
+
 on:
   pull_request:
   push:
@@ -9,10 +10,14 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  build-and-push:
+    name: Build & Push Docker image to ECR
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -20,7 +25,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
-      - name: Log in to ECR
+      - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
@@ -30,13 +35,18 @@ jobs:
           REGISTRY=${{ steps.login-ecr.outputs.registry }}
           REPO=${{ secrets.ECR_REPOSITORY }}
 
+          echo "Building image: $REGISTRY/$REPO:$IMAGE_TAG"
+
           docker build -t $REGISTRY/$REPO:$IMAGE_TAG .
           docker push $REGISTRY/$REPO:$IMAGE_TAG
-          
+
   deploy-to-ec2:
-   runs-on: ubuntu-latest
-   steps:
-      - name: Deploy to EC2
+    name: Deploy to EC2
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy application on EC2
         uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -46,8 +56,19 @@ jobs:
             IMAGE_TAG=${GITHUB_SHA::7}
             REGISTRY=${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
             REPO=${{ secrets.ECR_REPOSITORY }}
-      
-            docker pull $REGISTRY/$REPO:$IMAGE_TAG
-            docker run -d -p 80:7002 --name app $REGISTRY/$REPO:$IMAGE_TAG
 
-  
+            echo "Deploying image: $REGISTRY/$REPO:$IMAGE_TAG"
+
+            aws ecr get-login-password --region us-east-1 \
+            | docker login --username AWS --password-stdin $REGISTRY
+
+            docker pull $REGISTRY/$REPO:$IMAGE_TAG
+
+            docker stop app || true
+            docker rm app || true
+
+            docker run -d \
+              --name app \
+              --restart always \
+              -p 80:7002 \
+              $REGISTRY/$REPO:$IMAGE_TAG
